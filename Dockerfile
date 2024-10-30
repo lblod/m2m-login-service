@@ -1,4 +1,4 @@
-FROM semtech/mu-javascript-template:1.8.0
+FROM semtech/mu-javascript-template:feature-query-meta
 
 LABEL maintainer="info@redpencil.io"
 
