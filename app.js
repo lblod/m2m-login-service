@@ -1,15 +1,7 @@
-import { app } from 'mu';
-import { getSessionIdHeader, error } from './utils';
-import { saveLog } from './logs';
+import { app, query } from 'mu';
 import { checkAccessToken } from './lib/openid';
-import {
-  applicationName, groupIdClaim, removeOldSessions, removeCurrentSession,
-  ensureUserAndAccount, insertNewSessionForAccount,
-  selectAccountBySession,
-  selectBestuurseenheidByNumber
-} from './lib/session';
-
-const logsGraph = process.env.LOGS_GRAPH || 'http://mu.semte.ch/graphs/public';
+import { removeSessions, insertSession } from './lib/session';
+import httpContext from 'express-http-context';
 
 /**
  * Configuration validation on startup
@@ -18,6 +10,11 @@ const requiredEnvironmentVariables = [
   'MU_APPLICATION_AUTH_DISCOVERY_URL',
   'MU_APPLICATION_AUTH_CLIENT_ID',
 ];
+
+function error(res, message, status = 400) {
+  return res.status(status).json({errors: [ { title: message } ] });
+};
+
 requiredEnvironmentVariables.forEach(key => {
   if (!process.env[key]) {
     console.log(`Environment variable ${key} must be configured`);
@@ -26,7 +23,7 @@ requiredEnvironmentVariables.forEach(key => {
 });
 
 app.post('/sessions', async function (req, res, next) {
-  const sessionUri = getSessionIdHeader(req);
+  const sessionUri = req.get('mu-session-id');
   if (!sessionUri)
     return error(res, 'Session header is missing');
 
@@ -46,58 +43,35 @@ app.post('/sessions', async function (req, res, next) {
       return res.status(401).end();
     }
 
-    await removeOldSessions(sessionUri);
-
+    await removeSessions(sessionUri);
 
     if (process.env['DEBUG_LOG_TOKENSETS']) {
       console.log(`Received token ${JSON.stringify(token)}`);
     }
 
+    await insertSession( sessionUri, token );
 
-    const { groupUri, groupId } = await selectBestuurseenheidByNumber(token);
+    // TODO: Templates could offer a way to execute this
+    httpContext.get('response').removeHeader('mu-auth-allowed-groups');
 
-    if (!groupUri || !groupId) {
-      console.log(`Application is not allowed to login. No bestuurseenheid found.`);
-      saveLog(
-        logsGraph,
-        `http://data.lblod.info/class-names/no-bestuurseenheid-for-role`,
-        `Application is not allowed to login. No bestuurseenheid found`,
-        sessionUri,
-        token[groupIdClaim]);
-      return res.header('mu-auth-allowed-groups', 'CLEAR').status(403).end();
-    }
+    // This sets our mu-auth-allowed-groups with cached access rights,
+    // leading to a more efficient cookie
+    await query("SELECT * WHERE { ?s ?p ?o. } LIMIT 1");
 
-    const { accountUri, accountId } = await ensureUserAndAccount(token, groupId);
-
-    const { sessionId } = await insertNewSessionForAccount(accountUri, sessionUri, groupUri, token);
-
-    return res.header('mu-auth-allowed-groups', 'CLEAR').status(201).send({
+    return res.status(201).send({
       links: {
         self: '/sessions/current'
       },
       data: {
         type: 'sessions',
-        id: sessionId,
-        attributes: {
-          roles: [token[applicationName]] // probably not needed
-        }
-      },
-      relationships: {
-        account: {
-          links: { related: `/accounts/${accountId}` },
-          data: { type: 'accounts', id: accountId }
-        },
-        group: {
-          links: { related: `/bestuurseenheden/${groupId}` },
-          data: { type: 'bestuurseenheden', id: groupId }
-        }
+        id: sessionUri,
+        attributes: { }
       }
     });
   } catch (e) {
     return next(new Error(e.message));
   }
 });
-
 
 /**
  * Log out from the current session, i.e. detaching the session from the user's account.
@@ -106,16 +80,12 @@ app.post('/sessions', async function (req, res, next) {
  * @return [400] If the session header is missing or invalid
 */
 app.delete('/sessions/current', async function (req, res, next) {
-  const sessionUri = getSessionIdHeader(req);
+  const sessionUri = req.get('mu-session-id');
   if (!sessionUri)
     return error(res, 'Session header is missing');
 
   try {
-    const { accountUri } = await selectAccountBySession(sessionUri);
-    if (!accountUri)
-      return error(res, 'Invalid session');
-
-    await removeCurrentSession(sessionUri);
+    await removeSessions(sessionUri);
 
     return res.header('mu-auth-allowed-groups', 'CLEAR').status(204).end();
   } catch (e) {
@@ -125,7 +95,7 @@ app.delete('/sessions/current', async function (req, res, next) {
 
 /**
  * Error handler translating thrown Errors to 500 HTTP responses
-*/
+ */
 app.use(function (err, req, res, next) {
   console.log(`Error: ${err.message}`);
   res.status(500);
