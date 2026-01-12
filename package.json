@@ -1,19 +1,19 @@
 {
-  "name": "acmidm-login-service",
-  "version": "0.12.0",
-  "description": "Microservice to login using ACM/IDM with OpenId",
-  "dependencies": {
-    "@lblod/mu-auth-sudo": "^0.6.1",
-    "openid-client": "^5.6.5"
-  },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lblod/acmidm-login-service.git"
-  },
-  "author": "redpencil.io",
-  "license": "MIT"
+    "name": "m2m-login-service",
+    "version": "0.0.0",
+    "description": "Microservice that allows M2M login through acm/idm",
+    "dependencies": {
+        "@lblod/mu-auth-sudo": "^0.6.1",
+        "openid-client": "^5.6.5"
+    },
+    "devDependencies": {},
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lblod/m2m-login-service.git"
+    },
+    "author": "redpencil.io",
+    "license": "MIT"
 }
