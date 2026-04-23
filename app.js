@@ -123,6 +123,10 @@ app.delete('/sessions/current', async function (req, res, next) {
   }
 });
 
+app.get('/health-check', (req, res) => {
+  res.send({ status: 'ok' });
+});
+
 /**
  * Error handler translating thrown Errors to 500 HTTP responses
 */
