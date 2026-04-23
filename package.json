@@ -1,6 +1,6 @@
 {
     "name": "m2m-login-service",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Microservice that allows M2M login through acm/idm",
     "dependencies": {
         "@lblod/mu-auth-sudo": "^0.6.1",
